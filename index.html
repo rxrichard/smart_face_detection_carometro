@@ -5,468 +5,146 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <script src="js/jquery.js"></script>
-    <script src="js/jquery.facedetection.min.js"></script>
-    <title>Carômetro Escolar</title>
+    <title>Ferramentas Acadêmicas - Bastos</title>
     <style>
-        /* --- Reset e Base --- */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         
-        /* O body é Flex para centralizar o formulário, mas vira Block na impressão */
-        body { 
-            background-color: #f0f2f5; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            min-height: 100vh; 
-            padding: 20px; 
-            color: #333; 
-        }
-
-        /* --- Tela do Formulário (Card) --- */
-        .card { 
-            background-color: white; 
-            padding: 2rem; 
-            border-radius: 12px; 
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); 
-            width: 100%; 
-            max-width: 500px; 
-            /* Transition suave ao aparecer/sumir */
-            transition: opacity 0.3s ease;
-        }
-        
-        header { text-align: center; margin-bottom: 20px; }
-        header img { max-width: 150px; height: auto; }
-        h2.form-title { text-align: center; margin-bottom: 1.5rem; color: #444; font-weight: 600; }
-        
-        /* Inputs */
-        .form-group { margin-bottom: 1.2rem; }
-        .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: #555; font-size: 0.95rem; }
-        input[type="text"], input[type="number"], input[type="file"] { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; }
-        input[type="file"] { border: 1px dashed #ccc; background: #fafafa; }
-        
-        /* Radio */
-        .radio-group { background-color: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee; }
-        .radio-options { display: flex; gap: 20px; margin-top: 5px; }
-        .radio-item { display: flex; align-items: center; gap: 5px; cursor: pointer; }
-
-        /* Botão Gerar */
-        #btn-generate { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: background-color 0.3s; margin-top: 10px; }
-        #btn-generate:hover { background-color: #0056b3; }
-
-        /* --- Botões Flutuantes (Imprimir e Voltar) --- */
-        .floating-buttons {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            display: none; /* Começa invisível */
+        body {
+            background-color: #f0f2f5;
+            min-height: 100vh;
+            display: flex;
             flex-direction: column;
-            gap: 10px;
-            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            color: #333;
         }
 
-        .fab-btn {
-            color: white;
-            border: none;
-            border-radius: 50px;
-            padding: 12px 25px;
-            font-size: 1rem;
-            font-weight: bold;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            cursor: pointer;
-            transition: transform 0.2s, background-color 0.2s;
+        .container {
+            text-align: center;
+            max-width: 900px;
+            width: 100%;
+            padding: 20px;
+        }
+
+        /* Logo */
+        .logo-area { margin-bottom: 40px; }
+        .logo-area img { max-width: 180px; height: auto; }
+
+        h1 {
+            font-weight: 600;
+            color: #444;
+            margin-bottom: 40px;
+            font-size: 2rem;
+        }
+
+        /* Grid de Opções */
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            justify-content: center;
+        }
+
+        /* Cartões */
+        .menu-card {
+            background: white;
+            border-radius: 16px;
+            padding: 40px 30px;
+            text-decoration: none;
+            color: inherit;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: 2px solid transparent;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .menu-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            border-color: #007bff;
+        }
+
+        /* Ícones SVG */
+        .icon-box {
+            width: 80px;
+            height: 80px;
+            background: #e7f1ff;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
+            margin-bottom: 20px;
+            transition: background-color 0.3s;
         }
         
-        .fab-btn svg { width: 20px; height: 20px; margin-right: 8px; }
-        .fab-btn:hover { transform: scale(1.05); }
-
-        #btn-print { background-color: #28a745; }
-        #btn-print:hover { background-color: #218838; }
-
-        #btn-back { background-color: #6c757d; }
-        #btn-back:hover { background-color: #5a6268; }
-
-        /* --- Área de Impressão / Resultado --- */
-        #print-area {
-            display: none; /* Começa invisível */
-            width: 100%;
-            background: white;
-        }
-
-        /* Loading UI */
-        .status-container { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(255,255,255,0.95); z-index: 2000; 
-            display: none; /* Começa invisível */
-            justify-content: center; align-items: center; flex-direction: column;
-        }
-        .status-content { text-align: center; width: 100%; max-width: 600px; }
-        progress { width: 100%; height: 25px; margin: 15px 0; border-radius: 10px; }
-        .progress-text { font-weight: bold; color: #555; font-size: 1.2rem; }
+        .menu-card:hover .icon-box { background: #007bff; }
         
-        /* Live Preview Grid */
-        #live-preview-grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px;
-            width: 100%; margin-top: 20px; max-height: 40vh; overflow-y: auto; 
-            padding: 10px; background: #f8f9fa; border-radius: 8px; border: 1px solid #eee;
+        .icon-box svg {
+            width: 40px;
+            height: 40px;
+            stroke: #007bff;
+            transition: stroke 0.3s;
         }
-        .live-item { display: flex; flex-direction: column; align-items: center; animation: fadeIn 0.5s ease; }
-        .live-item img { width: 70px; height: 70px; border-radius: 50%; border: 2px solid #333; object-fit: cover; }
-        .live-item span { font-size: 0.7rem; margin-top: 5px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
 
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .menu-card:hover .icon-box svg { stroke: white; }
 
-        /* Preview inicial (miniaturas no form) */
-        #preview ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 5px; list-style: none; padding: 0; margin-top: 15px; }
-        #preview img { width: 100%; border-radius: 4px; }
-        
-        /* --- Layout de Impressão --- */
-        @media print {
-            body { display: block; background: white; padding: 0; }
-            .card, .status-container, .floating-buttons { display: none !important; } 
-            #print-area { display: block !important; }
-            section { box-shadow: none !important; margin: 0 !important; page-break-after: always; }
+        /* Textos do Cartão */
+        .menu-card h2 { font-size: 1.5rem; margin-bottom: 10px; color: #222; }
+        .menu-card p { color: #666; line-height: 1.5; font-size: 0.95rem; }
+
+        /* Rodapé */
+        footer {
+            margin-top: 60px;
+            font-size: 0.8rem;
+            color: #888;
         }
-        
-        /* Estilos PDF Final */
-        #cabecalho { text-align: center; margin-bottom: 1cm; }
-        #cabecalho img { height: 1.5cm; width: auto; }
-        #texto h1 { margin: 0.5cm 0 0 0; font-size: 24pt; text-transform: uppercase; text-align: center; font-family: Arial, sans-serif; }
 
+        /* Responsividade */
+        @media (max-width: 600px) {
+            .menu-grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 
 <body>
-    
-    <div class="floating-buttons" id="floating-controls">
-        <button id="btn-back" class="fab-btn" onclick="resetSystem()">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Voltar / Editar
-        </button>
-        <button id="btn-print" class="fab-btn" onclick="window.print()">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-            </svg>
-            Imprimir / Salvar PDF
-        </button>
-    </div>
 
-    <div id="status-screen" class="status-container">
-        <div class="status-content">
-            <h2 id="status-msg">Processando...</h2>
-            <progress id="status-progress" value="0" max="100"></progress>
-            <div id="status-text" class="progress-text">0%</div>
-            <div id="live-preview-grid"></div>
+    <div class="container">
+        <div class="logo-area">
+            <img src="logo/seu-logo.jpg" alt="Logo Bastos">
         </div>
-    </div>
 
-    <div class="card" id="form-screen">
-        <header>
-            <div id="logo"><img src="logo/seu-logo.jpg" alt="Logo nome escola" /></div>
-            <h2 class="form-title">Gerador de Carômetro</h2>
-        </header>
+        <h1>O que você deseja gerar hoje?</h1>
 
-        <form onsubmit="return false;">
-            <div class="form-group">
-                <label for="arq">1. Selecione as fotos:</label>
-                <input id="arq" type="file" accept="image/*" multiple>
-            </div>
-
-            <div class="form-group">
-                <label for="col">2. Colunas por página:</label>
-                <input type="number" id="col" inputmode="numeric" max="8" min="1" value="5">
-            </div>
-
-            <div class="form-group">
-                <label for="titulo">3. Título do Carômetro:</label>
-                <input id="titulo" type="text" placeholder="Ex: Turma 101 - Manhã">
-            </div>
-
-            <div class="form-group radio-group">
-                <label>4. Recorte de Rosto:</label>
-                <div class="radio-options">
-                    <label class="radio-item" for="yes">
-                        <input type="radio" id="yes" name="faceRec" value="true" checked>
-                        <span>Automático (IA)</span>
-                    </label>
-                    <label class="radio-item" for="no">
-                        <input type="radio" id="no" name="faceRec" value="false">
-                        <span>Apenas Centro</span>
-                    </label>
+        <div class="menu-grid">
+            <a href="organizador_sala.html" class="menu-card">
+                <div class="icon-box">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+                    </svg>
                 </div>
-            </div>
+                <h2>Organizador de Sala</h2>
+                <p>Crie mapas de sala de aula interativos (16, 25 ou 30 lugares) com fotos nas carteiras e layout do professor.</p>
+            </a>
 
-            <input id="btn-generate" type="button" value="GERAR CARÔMETRO">
-            <div id="preview"></div>
-        </form>
+            <a href="carometro.html" class="menu-card">
+                <div class="icon-box">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                    </svg>
+                </div>
+                <h2>Carômetro</h2>
+                <p>Gere listas padronizadas de alunos em formato de grade (colunas) para identificação rápida.</p>
+            </a>
+        </div>
+
+        <footer>
+            &copy; 2026 Richard Bastos - Ferramentas Internas
+        </footer>
     </div>
 
-    <div id="print-area"></div>
-
-    <script src="js/imageCrop.js"></script>
-    <script>
-        // Elementos do DOM
-        const btnGenerate = document.getElementById("btn-generate");
-        const input = document.getElementById("arq");
-        const titulo = document.getElementById("titulo");
-        const preview = document.getElementById("preview");
-        
-        const formScreen = document.getElementById("form-screen");
-        const printArea = document.getElementById("print-area");
-        const statusScreen = document.getElementById("status-screen");
-        const floatingControls = document.getElementById("floating-controls");
-        
-        // Elementos de Status
-        const msgStatus = document.getElementById("status-msg");
-        const progress = document.getElementById("status-progress");
-        const progressText = document.getElementById("status-text");
-        const liveGrid = document.getElementById("live-preview-grid");
-
-        // Logo Logic
-        const logoImg = document.querySelector('#logo img'); 
-        const logoDiv = document.getElementById('logo');
-        const logoElementToClone = logoImg || logoDiv;
-
-        // Variáveis Globais
-        let col = Number(document.getElementById("col").value);
-        const radioYes = document.getElementById('yes');
-        let arrayImages = []; // Deixar com let para poder resetar
-        
-        // Configuração Página
-        const pag = { w: 21, h: 29.7 }
-        const pageMargin = 1.0;
-        const imgMargin = 0.4;
-        const txtHeight = 1.0;
-        const imgBorderThickness = 0.05;
-
-        // --- Funções de Sistema ---
-
-        function checkData() {
-            // Recarrega o array do zero quando o usuário seleciona arquivos
-            getImageArray(input.files, arrayImages);
-            updateImageDisplay(arrayImages)
-        }
-
-        document.getElementById("col").addEventListener('change', function() {
-             col = Number(this.value);
-        });
-
-        function updateImageDisplay(array) {
-            preview.innerHTML = '';
-            let list = document.createElement('ul');
-            preview.appendChild(list);
-            if (arrayImages.length == 0) return;
-            
-            const maxPreview = Math.min(array.length, 12);
-            for (let i = 0; i < maxPreview; i++) {
-                let listItem = document.createElement('li');
-                let image = document.createElement('img');
-                image.src = window.URL.createObjectURL(arrayImages[i]);
-                listItem.appendChild(image);
-                list.appendChild(listItem);
-            }
-        }
-
-        // Função chamada pelo botão "Voltar"
-        function resetSystem() {
-            // Esconde a área de impressão e botões
-            printArea.style.display = 'none';
-            printArea.innerHTML = ''; // Limpa o HTML gerado para economizar memória
-            floatingControls.style.display = 'none';
-            
-            // Reseta estilo do body para centralizar o card
-            document.body.style.display = "flex";
-            document.body.style.backgroundColor = "#f0f2f5";
-            document.body.style.padding = "20px";
-
-            // Mostra o formulário
-            formScreen.style.display = 'block';
-            
-            // Limpa o grid de preview ao vivo para a próxima vez
-            liveGrid.innerHTML = '';
-            
-            // Nota: Não limpamos o input.files nem o arrayImages
-            // para que o usuário possa só mudar o título ou colunas se quiser.
-            // Mas precisamos garantir que o array seja recarregado corretamente se ele clicar em gerar de novo.
-            // A função geraCarometro lida com isso verificando se precisa reprocessar.
-            
-            // Recarrega imagens "cruas" para evitar erro de processar imagem já processada
-            if(input.files.length > 0) {
-                getImageArray(input.files, arrayImages);
-            }
-        }
-
-        function toggleLoading(show, text = "Processando...") {
-            if (show) {
-                formScreen.style.display = 'none';
-                statusScreen.style.display = 'flex';
-                msgStatus.innerText = text;
-                progress.value = 0;
-                progressText.innerText = "0%";
-                liveGrid.innerHTML = ''; // Limpa grid anterior
-            } else {
-                statusScreen.style.display = 'none';
-            }
-        }
-
-        async function geraCarometro() {
-            if (arrayImages.length === 0) {
-                alert("Por favor, selecione algumas imagens primeiro.");
-                return;
-            }
-
-            // Inicia UI de Carregamento
-            toggleLoading(true, "Reduzindo imagens...");
-
-            // --- FASE 1: Redução ---
-            await reduceArrayImages(arrayImages, progress, progressText);
-
-            // --- FASE 2: Detecção ---
-            if (radioYes.checked) {
-                msgStatus.innerText = "Detectando faces (IA)...";
-                await faceDetectArray(arrayImages, progress, progressText);
-            }
-
-            // --- FASE 3: Recorte ---
-            msgStatus.innerText = "Recortando e Finalizando...";
-            
-            const onImageProcessed = (imageItem) => {
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'live-item';
-                const img = document.createElement('img');
-                img.src = window.URL.createObjectURL(imageItem.fileCrop);
-                const span = document.createElement('span');
-                span.innerText = imageItem.fileOriginal.name.split('.')[0];
-                itemDiv.appendChild(img);
-                itemDiv.appendChild(span);
-                liveGrid.appendChild(itemDiv);
-                // Auto scroll para baixo
-                liveGrid.scrollTop = liveGrid.scrollHeight;
-            };
-
-            await drawImages(arrayImages, progress, progressText, onImageProcessed);
-
-            msgStatus.innerText = "Montando PDF...";
-            await new Promise(r => setTimeout(r, 800));
-
-            toggleLoading(false); // Esconde loading
-            renderFinalLayout();  // Mostra resultado
-        }
-
-        function renderFinalLayout() {
-            // Prepara o body para modo de exibição do documento
-            document.body.style.display = "block";
-            document.body.style.backgroundColor = "white";
-            document.body.style.padding = "0";
-            
-            // Mostra a área de impressão e botões
-            printArea.style.display = 'block';
-            floatingControls.style.display = 'flex';
-
-            const imgSize = ((pag.w - (pageMargin * 2)) / col) - (imgMargin * 2);
-            let content = createNewPage();
-            let currentHeightUsed = 0;
-            
-            let cabecalho = createHeader();
-            content.appendChild(cabecalho);
-
-            let photoContainer = document.createElement('div');
-            photoContainer.style.display = "flex";
-            photoContainer.style.flexWrap = "wrap";
-            photoContainer.style.justifyContent = "flex-start";
-            
-            const totalContentWidth = (imgSize + imgMargin * 2) * col;
-            const leftPadding = (pag.w - (pageMargin*2) - totalContentWidth) / 2;
-            if(leftPadding > 0) photoContainer.style.paddingLeft = leftPadding + "cm";
-
-            content.appendChild(photoContainer);
-
-            for (let i = 0; i < arrayImages.length; i++) {
-                const personBox = document.createElement('div');
-                personBox.style.width = imgSize + "cm";
-                personBox.style.margin = imgMargin + "cm";
-                personBox.style.textAlign = "center";
-                personBox.style.boxSizing = "content-box";
-                
-                const img = document.createElement('img');
-                img.src = window.URL.createObjectURL(arrayImages[i].fileCrop);
-                img.style.width = imgSize + "cm";
-                img.style.height = imgSize + "cm";
-                img.style.borderRadius = "50%";
-                img.style.border = `${imgBorderThickness}cm solid black`;
-                img.style.objectFit = "cover";
-                img.style.boxSizing = "border-box";
-                img.style.display = "block";
-
-                const texto = document.createElement('p');
-                texto.textContent = arrayImages[i].fileOriginal.name.split('.')[0];
-                texto.style.fontSize = "10pt";
-                texto.style.margin = "0.2cm 0 0 0";
-                texto.style.wordWrap = "break-word";
-                texto.style.lineHeight = "1.1";
-
-                personBox.appendChild(img);
-                personBox.appendChild(texto);
-                photoContainer.appendChild(personBox);
-
-                 if ((i + 1) % col === 0 || i === arrayImages.length - 1) {
-                    const rowHeightEstimate = imgSize + txtHeight + (imgMargin * 3);
-                    const headerHeight = (i < col) ? 3 : 0;
-                    currentHeightUsed += rowHeightEstimate + headerHeight;
-
-                     if (currentHeightUsed + rowHeightEstimate > pag.h - (pageMargin*2) && i !== arrayImages.length - 1) {
-                        content = createNewPage();
-                        photoContainer = document.createElement('div');
-                        photoContainer.style.display = "flex";
-                        photoContainer.style.flexWrap = "wrap";
-                         photoContainer.style.justifyContent = "flex-start";
-                        if(leftPadding > 0) photoContainer.style.paddingLeft = leftPadding + "cm";
-                        content.appendChild(photoContainer);
-                        currentHeightUsed = 0;
-                    }
-                 }
-            }
-        }
-
-        function createNewPage() {
-            let page = document.createElement('section');
-            page.style.width = pag.w + "cm";
-            page.style.minHeight = pag.h + "cm";
-            page.style.padding = pageMargin + "cm";
-            page.style.boxSizing = "border-box";
-            page.style.backgroundColor = "white";
-            page.style.margin = "0 auto 20px auto";
-            page.style.boxShadow = "0 0 10px rgba(0,0,0,0.1)";
-            // Importante: garante que a sombra suma na impressão
-            page.classList.add('print-page'); 
-            document.getElementById('print-area').appendChild(page);
-            return page;
-        }
-
-        function createHeader() {
-            const titDiv = document.createElement('div');
-            titDiv.id = 'cabecalho';
-            if (logoElementToClone) {
-                const logoClone = logoElementToClone.cloneNode(true);
-                logoClone.style.display = "inline-block";
-                titDiv.appendChild(logoClone);
-            }
-            const textoDiv = document.createElement('div');
-            textoDiv.id = "texto";
-            let textContent = titulo.value.trim() === '' ? 'CARÔMETRO' : titulo.value;
-            textoDiv.innerHTML = `<h1>${textContent}</h1>`;
-            titDiv.appendChild(textoDiv);
-            return titDiv;
-        }
-
-        input.addEventListener('change', checkData);
-        btnGenerate.addEventListener('click', geraCarometro);
-    </script>
 </body>
-
 </html>

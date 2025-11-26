@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <script src="js/jquery.js"></script>
+    <script src="js/jquery.facedetection.min.js"></script>
+    
+    <title>Organizador de Sala Customizável</title>
+    <style>
+        /* --- Reset e Base --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f0f2f5; min-height: 100vh; color: #333; overflow-x: hidden; }
+
+        /* --- Telas (Views) --- */
+        .screen { display: none; width: 100%; height: 100%; }
+        .screen.active { display: flex; justify-content: center; align-items: center; }
+
+        /* --- Tela 1: Formulário --- */
+        .card { 
+            background-color: white; padding: 2rem; border-radius: 12px; 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); width: 100%; max-width: 500px; margin-top: 50px;
+            position: relative;
+        }
+
+        .card-back-btn {
+            position: absolute; top: 15px; left: 15px;
+            background: none; border: none; cursor: pointer; color: #666;
+            display: flex; align-items: center; justify-content: center;
+            padding: 5px; border-radius: 50%; transition: 0.2s;
+        }
+        .card-back-btn:hover { background-color: #f0f0f0; color: #333; }
+        .card-back-btn svg { width: 24px; height: 24px; }
+
+        header { text-align: center; margin-bottom: 20px; }
+        header img { max-width: 150px; height: auto; }
+        h2.form-title { text-align: center; margin-bottom: 1.5rem; color: #444; font-weight: 600; }
+        
+        .form-group { margin-bottom: 1.2rem; }
+        .form-row { display: flex; gap: 15px; }
+        .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: #555; font-size: 0.95rem; }
+        input[type="text"], input[type="number"], input[type="file"], select { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; }
+        
+        #btn-generate { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; font-size: 1rem; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        #btn-generate:hover { background-color: #0056b3; }
+
+        /* --- Tela 2: Editor Interativo --- */
+        #editor-screen { flex-direction: column; height: 100vh; overflow: hidden; background: #e9ecef;}
+
+        /* Toolbar de Construção (Topo) */
+        .construction-toolbar {
+            width: 100%; background: #343a40; color: white; padding: 10px;
+            display: flex; justify-content: center; align-items: center; gap: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 200;
+        }
+        .tool-option {
+            display: flex; flex-direction: column; align-items: center; cursor: pointer; 
+            padding: 8px 15px; border-radius: 6px; transition: 0.2s; border: 2px solid transparent; opacity: 0.7;
+        }
+        .tool-option:hover { opacity: 1; background: rgba(255,255,255,0.1); }
+        .tool-option.active { border-color: #007bff; background: rgba(0,123,255,0.2); opacity: 1; }
+        .tool-option span { font-size: 0.75rem; margin-top: 4px; font-weight: bold; }
+        .tool-icon { width: 24px; height: 24px; display: block; border: 1px solid #fff; }
+        
+        /* Ícones representativos para a toolbar */
+        .icon-desk { background: white; border: 1px dashed #333; }
+        .icon-teacher { background: #e0e0e0; border: 2px solid #000; }
+        .icon-cupboard { background: #ddd; }
+        .icon-door { background: #333; }
+        .icon-floor { background: transparent; border: 1px dotted #777; }
+        .icon-cursor { background: #007bff; border: none; border-radius: 50%; }
+
+        /* Área Principal (Split) */
+        .editor-body { display: flex; flex: 1; overflow: hidden; width: 100%; }
+
+        /* Sidebar Alunos */
+        #sidebar-students {
+            width: 280px; background: #fff; height: 100%; border-right: 1px solid #ddd;
+            display: flex; flex-direction: column; box-shadow: 2px 0 10px rgba(0,0,0,0.05); z-index: 10;
+        }
+        .sidebar-header { padding: 15px; background: #f8f9fa; border-bottom: 1px solid #eee; text-align: center; }
+        .sidebar-content { flex: 1; overflow-y: auto; padding: 10px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; align-content: start; }
+        
+        .student-token {
+            width: 100%; aspect-ratio: 1; border-radius: 50%; border: 2px solid #ddd; cursor: pointer; transition: transform 0.2s; position: relative; margin: 0 auto;
+        }
+        .student-token:hover { transform: scale(1.05); border-color: #999; }
+        .student-token.selected { border-color: #007bff; box-shadow: 0 0 0 4px rgba(0,123,255,0.2); transform: scale(1.05); z-index: 2; }
+        .student-token img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; background: #eee; }
+        
+        /* Workspace (Papel) */
+        #workspace {
+            flex: 1; height: 100%; overflow-y: auto; padding: 30px;
+            display: flex; flex-direction: column; align-items: center; gap: 20px;
+        }
+
+        /* Botões de Ação (Floating) */
+        .editor-actions { position: fixed; bottom: 20px; right: 20px; display: flex; gap: 10px; z-index: 100; }
+        .action-btn { padding: 12px 20px; border: none; border-radius: 50px; color: white; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 8px; }
+        .btn-green { background-color: #28a745; } .btn-blue { background-color: #17a2b8; } .btn-red { background-color: #dc3545; }
+        
+        /* --- Estilos Visuais (Papel A4) --- */
+        .page-a4 {
+            width: 21cm; height: 29.7cm; position: relative; 
+            background: white; border: 1px solid #ccc;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1); margin-bottom: 30px; padding: 1cm; user-select: none; 
+        }
+        
+        .room-title-label { font-weight: bold; font-size: 1.5rem; text-align: center; margin-bottom: 1cm; display: block; border-bottom: 2px solid #333; padding-bottom: 10px; }
+
+        /* --- GRID DO MAPA --- */
+        .desks-grid { 
+            display: grid; width: 100%; height: 85%; /* Ocupa o resto da pagina */
+            border: 1px solid #eee; /* Guia visual leve na tela */
+        }
+
+        /* --- Células (Slots) --- */
+        .grid-slot {
+            border: 1px dotted #e0e0e0; /* Grade guia */
+            position: relative;
+            display: flex; align-items: center; justify-content: center;
+        }
+        
+        /* Tipos de Slots */
+        .slot-floor { background: transparent; }
+        .slot-floor:hover { background: #f9f9f9; } /* Hover suave para edição */
+
+        .slot-desk { border: 2px dashed #999; border-radius: 6px; background: white; margin: 4px; position: relative; cursor: pointer; }
+        .slot-desk::before { content: ''; position: absolute; width: 80%; height: 5px; background: #ccc; border: 1px solid #999; bottom: -8px; border-radius: 0 0 5px 5px; } /* Encosto Cadeira visual */
+        
+        .slot-desk.occupied { border: 2px solid #333; border-style: solid; }
+        
+        .slot-teacher { background: #e0e0e0; border: 2px solid #000; margin: 5px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; }
+        .slot-teacher::after { content: "PROF"; color: #555; }
+        
+        .slot-cupboard { background: #ddd; border: 2px solid #444; margin: 2px; display: flex; align-items: center; justify-content: center; writing-mode: vertical-rl; text-orientation: mixed; font-size: 0.7rem; }
+        .slot-cupboard::after { content: "ARMÁRIO"; }
+
+        .slot-door { background: #333; position: relative; margin: 5px; }
+        .slot-door::after { content: ''; position: absolute; width: 100%; height: 100%; border: 1px dashed #999; border-radius: 0 100% 0 0; top: -50%; left: 0; pointer-events: none; }
+
+        /* Conteúdo do Aluno (Foto) */
+        .desk-content { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+        .desk-content img { width: 70%; aspect-ratio: 1; border-radius: 50%; object-fit: cover; border: 1px solid #000; margin-bottom: 2px; }
+        .desk-content span { font-size: 0.7rem; font-weight: bold; line-height: 1; word-wrap: break-word; text-align: center; width: 95%; max-height: 2em; overflow: hidden;}
+
+        /* --- Loading Overlay --- */
+        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 2000; display: none; justify-content: center; align-items: center; flex-direction: column; }
+        progress { width: 300px; height: 20px; margin: 10px 0; }
+
+        /* --- PRINT --- */
+        @media print {
+            body, #editor-screen, .editor-body, #workspace { height: auto; overflow: visible; background: white; display: block; }
+            #form-screen, .construction-toolbar, #sidebar-students, .editor-actions, #loading-overlay { display: none !important; }
+            .page-a4 { margin: 0 !important; box-shadow: none !important; page-break-after: always; border: 3px solid #333; }
+            .grid-slot { border: none; } /* Remove linhas guia na impressão */
+            .slot-desk { border-color: #ccc; }
+            .slot-desk.occupied { border-color: #000; }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="form-screen" class="screen active">
+        <div class="card">
+            <button class="card-back-btn" onclick="window.location.href='index.html'" title="Voltar">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <header>
+                <div id="logo"><img src="logo/seu-logo.jpg" alt="Logo" /></div>
+                <h2 class="form-title">Organizador de Sala</h2>
+            </header>
+            <form onsubmit="return false;">
+                <div class="form-group">
+                    <label>1. Selecione as fotos:</label>
+                    <input id="arq" type="file" accept="image/*" multiple>
+                </div>
+                <div class="form-group">
+                    <label>2. Título da Turma:</label>
+                    <input id="titulo" type="text" placeholder="Ex: Turma 101">
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group" style="flex:1">
+                        <label>Fileiras (Linhas):</label>
+                        <input type="number" id="rowsInput" value="5" min="2" max="10">
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label>Cadeiras (Colunas):</label>
+                        <input type="number" id="colsInput" value="5" min="2" max="10">
+                    </div>
+                </div>
+
+                <input id="btn-generate" type="button" value="INICIAR PROJETO">
+            </form>
+        </div>
+    </div>
+
+    <div id="editor-screen" class="screen">
+        <div class="construction-toolbar">
+            <div class="tool-option active" onclick="setTool('cursor')" title="Alocar Alunos">
+                <div class="tool-icon icon-cursor"></div>
+                <span>Alocar Aluno</span>
+            </div>
+            <div style="width: 1px; height: 30px; background: #555; margin: 0 10px;"></div>
+            <div class="tool-option" onclick="setTool('desk')" title="Criar Mesa de Aluno">
+                <div class="tool-icon icon-desk"></div>
+                <span>Mesa Aluno</span>
+            </div>
+            <div class="tool-option" onclick="setTool('teacher')" title="Criar Mesa Professor">
+                <div class="tool-icon icon-teacher"></div>
+                <span>Professor</span>
+            </div>
+            <div class="tool-option" onclick="setTool('cupboard')" title="Criar Armário">
+                <div class="tool-icon icon-cupboard"></div>
+                <span>Armário</span>
+            </div>
+            <div class="tool-option" onclick="setTool('door')" title="Criar Porta">
+                <div class="tool-icon icon-door"></div>
+                <span>Porta</span>
+            </div>
+            <div class="tool-option" onclick="setTool('floor')" title="Apagar / Chão Vazio">
+                <div class="tool-icon icon-floor"></div>
+                <span>Borracha</span>
+            </div>
+        </div>
+
+        <div class="editor-body">
+            <div id="sidebar-students">
+                <div class="sidebar-header">
+                    <h3>Alunos</h3>
+                    <small id="sidebar-instruction">Use a ferramenta "Alocar Aluno".</small>
+                </div>
+                <div id="sidebar-content" class="sidebar-content"></div>
+            </div>
+
+            <div id="workspace"></div>
+        </div>
+
+        <div class="editor-actions">
+            <button class="action-btn btn-red" onclick="resetSystem()">Voltar</button>
+            <button class="action-btn btn-blue" id="btn-autofill" onclick="autoFill()">Preencher Auto</button>
+            <button class="action-btn btn-green" onclick="window.print()">IMPRIMIR PDF</button>
+        </div>
+    </div>
+
+    <div id="loading-overlay">
+        <h2 id="status-msg">Processando...</h2>
+        <progress id="status-progress" value="0" max="100"></progress>
+        <div id="status-text">0%</div>
+    </div>
+
+    <script src="js/imageCrop.js"></script>
+    <script>
+        // --- Globais ---
+        let allStudents = [];
+        let selectedStudentId = null;
+        let currentTool = 'cursor'; // cursor, desk, teacher, cupboard, door, floor
+        
+        let gridRows = 5;
+        let gridCols = 5;
+
+        // --- Elementos ---
+        const inputArq = document.getElementById('arq');
+        const btnGenerate = document.getElementById('btn-generate');
+        const rowsInput = document.getElementById('rowsInput');
+        const colsInput = document.getElementById('colsInput');
+        
+        const formScreen = document.getElementById('form-screen');
+        const editorScreen = document.getElementById('editor-screen');
+        const workspace = document.getElementById('workspace');
+        const sidebarContent = document.getElementById('sidebar-content');
+        
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const progress = document.getElementById('status-progress');
+        const progressText = document.getElementById('status-text');
+        const statusMsg = document.getElementById('status-msg');
+
+        btnGenerate.addEventListener('click', startProcessing);
+
+        async function startProcessing() {
+            if (inputArq.files.length === 0) { alert("Selecione fotos primeiro."); return; }
+            
+            // Captura dimensões do formulário
+            gridRows = parseInt(rowsInput.value) || 5;
+            gridCols = parseInt(colsInput.value) || 5;
+
+            loadingOverlay.style.display = 'flex';
+            const rawFiles = [];
+            getImageArray(inputArq.files, rawFiles); 
+
+            statusMsg.innerText = "Otimizando imagens...";
+            await reduceArrayImages(rawFiles, progress, progressText);
+            
+            statusMsg.innerText = "Detectando rostos...";
+            await faceDetectArray(rawFiles, progress, progressText);
+            
+            statusMsg.innerText = "Recortando...";
+            await drawImages(rawFiles, progress, progressText, () => {}); 
+
+            // Cria objetos de alunos
+            allStudents = rawFiles.map((item, index) => ({
+                id: index,
+                fileCrop: item.fileCrop,
+                name: item.fileOriginal.name.split('.')[0],
+                seated: false,
+                deskId: null
+            }));
+
+            loadingOverlay.style.display = 'none';
+            
+            // Configura interface
+            formScreen.classList.remove('active');
+            editorScreen.classList.add('active');
+            
+            renderSidebar();
+            renderDynamicMap();
+        }
+
+        function setTool(toolName) {
+            currentTool = toolName;
+            // Atualiza visual da toolbar
+            document.querySelectorAll('.tool-option').forEach(el => el.classList.remove('active'));
+            const activeBtn = document.querySelector(`.tool-option[onclick="setTool('${toolName}')"]`);
+            if(activeBtn) activeBtn.classList.add('active');
+
+            // Feedback visual para o usuário
+            const instruction = document.getElementById('sidebar-instruction');
+            if (toolName === 'cursor') {
+                instruction.innerText = "Clique num aluno, depois numa mesa.";
+                document.getElementById('sidebar-students').style.opacity = '1';
+                document.getElementById('sidebar-students').style.pointerEvents = 'auto';
+            } else {
+                instruction.innerText = "Modo Construção: Clique na grade para alterar.";
+                document.getElementById('sidebar-students').style.opacity = '0.5';
+                document.getElementById('sidebar-students').style.pointerEvents = 'none';
+                // Deselecionar aluno se houver
+                selectedStudentId = null;
+                renderSidebar();
+            }
+        }
+
+        function renderDynamicMap() {
+            workspace.innerHTML = '';
+            
+            const page = document.createElement('div');
+            page.className = 'page-a4';
+            
+            // Título
+            const titleVal = document.getElementById('titulo').value || "Sala de Aula";
+            const h1 = document.createElement('h1');
+            h1.className = 'room-title-label';
+            h1.innerText = titleVal;
+            page.appendChild(h1);
+
+            // Grade
+            const grid = document.createElement('div');
+            grid.className = 'desks-grid';
+            // Configura CSS Grid dinâmico
+            grid.style.gridTemplateRows = `repeat(${gridRows}, 1fr)`;
+            grid.style.gridTemplateColumns = `repeat(${gridCols}, 1fr)`;
+
+            // Preencher Slots
+            for (let r = 0; r < gridRows; r++) {
+                for (let c = 0; c < gridCols; c++) {
+                    const slotId = `slot-${r}-${c}`;
+                    const slot = document.createElement('div');
+                    slot.id = slotId;
+                    slot.className = 'grid-slot slot-desk'; // Padrão: Mesa
+                    // Adiciona evento de clique para construção ou alocação
+                    slot.onclick = () => handleSlotClick(slotId);
+                    
+                    grid.appendChild(slot);
+                }
+            }
+
+            page.appendChild(grid);
+            workspace.appendChild(page);
+        }
+
+        function handleSlotClick(slotId) {
+            const slot = document.getElementById(slotId);
+            
+            // Lógica de Construção
+            if (currentTool !== 'cursor') {
+                // Remove classes antigas
+                slot.className = 'grid-slot';
+                slot.innerHTML = ''; // Limpa conteúdo (alunos, texto professor, etc)
+
+                // Verifica se tinha aluno e remove a associação
+                const occupant = allStudents.find(s => s.deskId === slotId);
+                if(occupant) {
+                    occupant.seated = false;
+                    occupant.deskId = null;
+                    renderSidebar();
+                }
+
+                // Aplica nova ferramenta
+                switch (currentTool) {
+                    case 'desk': slot.classList.add('slot-desk'); break;
+                    case 'teacher': slot.classList.add('slot-teacher'); break;
+                    case 'cupboard': slot.classList.add('slot-cupboard'); break;
+                    case 'door': slot.classList.add('slot-door'); break;
+                    case 'floor': slot.classList.add('slot-floor'); break;
+                }
+                return;
+            }
+
+            // Lógica de Alocação (Cursor)
+            // Só funciona se o slot for uma mesa (slot-desk)
+            if (!slot.classList.contains('slot-desk')) return;
+
+            const occupant = allStudents.find(s => s.deskId === slotId);
+
+            // Se tenho aluno selecionado na mão
+            if (selectedStudentId !== null) {
+                const student = allStudents.find(s => s.id === selectedStudentId);
+                
+                // Se a mesa já tem gente, expulsa
+                if (occupant) { occupant.seated = false; occupant.deskId = null; }
+                
+                // Senta o novo
+                student.seated = true;
+                student.deskId = slotId;
+                selectedStudentId = null; // Limpa seleção
+                
+                renderSidebar();
+                updateSlotUI(slotId);
+            } 
+            // Se cliquei numa mesa ocupada mas não tenho ninguem na mão (remove aluno)
+            else if (occupant) {
+                occupant.seated = false;
+                occupant.deskId = null;
+                renderSidebar();
+                updateSlotUI(slotId);
+            }
+        }
+
+        function updateSlotUI(slotId) {
+            const slot = document.getElementById(slotId);
+            const occupant = allStudents.find(s => s.deskId === slotId);
+            
+            if (occupant) {
+                slot.classList.add('occupied');
+                slot.innerHTML = '';
+                
+                const content = document.createElement('div');
+                content.className = 'desk-content';
+                
+                const img = document.createElement('img');
+                img.src = window.URL.createObjectURL(occupant.fileCrop);
+                
+                const span = document.createElement('span');
+                span.innerText = occupant.name;
+                
+                content.appendChild(img);
+                content.appendChild(span);
+                slot.appendChild(content);
+            } else {
+                slot.classList.remove('occupied');
+                slot.innerHTML = '';
+            }
+        }
+
+        function renderSidebar() {
+            sidebarContent.innerHTML = '';
+            const unseated = allStudents.filter(s => !s.seated);
+            unseated.forEach(student => {
+                const div = document.createElement('div');
+                div.className = `student-token ${selectedStudentId === student.id ? 'selected' : ''}`;
+                div.onclick = () => {
+                    if (currentTool === 'cursor') selectStudent(student.id);
+                };
+                const img = document.createElement('img');
+                img.src = window.URL.createObjectURL(student.fileCrop);
+                div.title = student.name;
+                div.appendChild(img);
+                sidebarContent.appendChild(div);
+            });
+        }
+
+        function selectStudent(id) {
+            if (selectedStudentId === id) selectedStudentId = null; 
+            else selectedStudentId = id;
+            renderSidebar();
+        }
+
+        function autoFill() {
+            if (currentTool !== 'cursor') {
+                alert("Mude para a ferramenta 'Alocar Aluno' (Cursor azul) para preencher.");
+                return;
+            }
+            const unseated = allStudents.filter(s => !s.seated);
+            // Busca apenas slots que são mesas E não tem a classe occupied
+            const desks = Array.from(document.querySelectorAll('.slot-desk:not(.occupied)'));
+            
+            if (desks.length === 0) { alert("Não há mesas livres."); return; }
+            
+            unseated.forEach((student, i) => {
+                if (i < desks.length) {
+                    student.seated = true;
+                    student.deskId = desks[i].id;
+                    updateSlotUI(student.deskId);
+                }
+            });
+            renderSidebar();
+        }
+
+        function resetSystem() {
+            selectedStudentId = null;
+            allStudents = [];
+            currentTool = 'cursor';
+            editorScreen.classList.remove('active');
+            formScreen.classList.add('active');
+            workspace.innerHTML = '';
+            sidebarContent.innerHTML = '';
+        }
+    </script>
+</body>
+</html>
