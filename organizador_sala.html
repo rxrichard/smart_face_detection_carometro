@@ -166,16 +166,18 @@
 
     <div id="form-screen" class="screen active">
         <div class="card">
-            <button class="card-back-btn" onclick="window.location.href='index.html'" title="Voltar">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+            <button class="card-back-btn" style="right: 15px; left: auto; border-radius: 6px; width: auto; padding: 5px 10px; font-size: 0.9rem;" onclick="document.getElementById('importFile').click()" title="Carregar Arquivo Salvo">
+                📂 Carregar Projeto
             </button>
+            <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importProject(this)">
+
             <header>
                 <div id="logo"><img src="logo/seu-logo.jpg" alt="Logo" /></div>
                 <h2 class="form-title">Organizador de Sala</h2>
             </header>
             <form onsubmit="return false;">
                 <div class="form-group">
-                    <label>1. Selecione as fotos:</label>
+                    <label>1. Selecione as fotos (Novo Projeto):</label>
                     <input id="arq" type="file" accept="image/*" multiple>
                 </div>
                 <div class="form-group">
@@ -194,7 +196,7 @@
                     </div>
                 </div>
 
-                <input id="btn-generate" type="button" value="INICIAR PROJETO">
+                <input id="btn-generate" type="button" value="INICIAR NOVO PROJETO">
             </form>
         </div>
     </div>
@@ -242,6 +244,7 @@
 
         <div class="editor-actions">
             <button class="action-btn btn-red" onclick="resetSystem()">Voltar</button>
+            <button class="action-btn" style="background-color: #6f42c1;" onclick="exportProject()">💾 Salvar</button>
             <button class="action-btn btn-blue" id="btn-autofill" onclick="autoFill()">Preencher Auto</button>
             <button class="action-btn btn-green" onclick="window.print()">IMPRIMIR PDF</button>
         </div>
@@ -253,12 +256,13 @@
         <div id="status-text">0%</div>
     </div>
 
+
     <script src="js/imageCrop.js"></script>
     <script>
         // --- Globais ---
         let allStudents = [];
         let selectedStudentId = null;
-        let currentTool = 'cursor'; // cursor, desk, teacher, cupboard, door, floor
+        let currentTool = 'cursor';
         
         let gridRows = 5;
         let gridCols = 5;
@@ -284,7 +288,6 @@
         async function startProcessing() {
             if (inputArq.files.length === 0) { alert("Selecione fotos primeiro."); return; }
             
-            // Captura dimensões do formulário
             gridRows = parseInt(rowsInput.value) || 5;
             gridCols = parseInt(colsInput.value) || 5;
 
@@ -301,10 +304,9 @@
             statusMsg.innerText = "Recortando...";
             await drawImages(rawFiles, progress, progressText, () => {}); 
 
-            // Cria objetos de alunos
             allStudents = rawFiles.map((item, index) => ({
                 id: index,
-                fileCrop: item.fileCrop,
+                fileCrop: item.fileCrop, // Isso é um Blob
                 name: item.fileOriginal.name.split('.')[0],
                 seated: false,
                 deskId: null
@@ -312,66 +314,59 @@
 
             loadingOverlay.style.display = 'none';
             
-            // Configura interface
             formScreen.classList.remove('active');
             editorScreen.classList.add('active');
             
             renderSidebar();
-            renderDynamicMap();
+            renderDynamicMap(); // Cria mapa vazio
         }
 
-        function setTool(toolName) {
-            currentTool = toolName;
-            // Atualiza visual da toolbar
-            document.querySelectorAll('.tool-option').forEach(el => el.classList.remove('active'));
-            const activeBtn = document.querySelector(`.tool-option[onclick="setTool('${toolName}')"]`);
-            if(activeBtn) activeBtn.classList.add('active');
+        // --- MANIPULAÇÃO DA GRID ---
 
-            // Feedback visual para o usuário
-            const instruction = document.getElementById('sidebar-instruction');
-            if (toolName === 'cursor') {
-                instruction.innerText = "Clique num aluno, depois numa mesa.";
-                document.getElementById('sidebar-students').style.opacity = '1';
-                document.getElementById('sidebar-students').style.pointerEvents = 'auto';
-            } else {
-                instruction.innerText = "Modo Construção: Clique na grade para alterar.";
-                document.getElementById('sidebar-students').style.opacity = '0.5';
-                document.getElementById('sidebar-students').style.pointerEvents = 'none';
-                // Deselecionar aluno se houver
-                selectedStudentId = null;
-                renderSidebar();
-            }
-        }
-
-        function renderDynamicMap() {
+        function renderDynamicMap(savedLayoutData = null) {
             workspace.innerHTML = '';
             
             const page = document.createElement('div');
             page.className = 'page-a4';
             
-            // Título
             const titleVal = document.getElementById('titulo').value || "Sala de Aula";
             const h1 = document.createElement('h1');
             h1.className = 'room-title-label';
             h1.innerText = titleVal;
             page.appendChild(h1);
 
-            // Grade
             const grid = document.createElement('div');
             grid.className = 'desks-grid';
-            // Configura CSS Grid dinâmico
             grid.style.gridTemplateRows = `repeat(${gridRows}, 1fr)`;
             grid.style.gridTemplateColumns = `repeat(${gridCols}, 1fr)`;
 
-            // Preencher Slots
             for (let r = 0; r < gridRows; r++) {
                 for (let c = 0; c < gridCols; c++) {
                     const slotId = `slot-${r}-${c}`;
                     const slot = document.createElement('div');
                     slot.id = slotId;
-                    slot.className = 'grid-slot slot-desk'; // Padrão: Mesa
-                    // Adiciona evento de clique para construção ou alocação
                     slot.onclick = () => handleSlotClick(slotId);
+
+                    // Se estamos carregando um arquivo salvo, restauramos o estado
+                    if (savedLayoutData) {
+                        const savedSlot = savedLayoutData.find(s => s.id === slotId);
+                        if (savedSlot) {
+                            // Restaura tipo (mesa, professor, etc)
+                            if (savedSlot.type === 'desk') slot.className = 'grid-slot slot-desk';
+                            else if (savedSlot.type === 'teacher') slot.className = 'grid-slot slot-teacher';
+                            else if (savedSlot.type === 'cupboard') slot.className = 'grid-slot slot-cupboard';
+                            else if (savedSlot.type === 'door') slot.className = 'grid-slot slot-door';
+                            else slot.className = 'grid-slot slot-floor';
+                            
+                            // Se tiver aluno sentado, a função updateSlotUI vai cuidar disso depois
+                            // mas precisamos garantir a classe base
+                        } else {
+                             slot.className = 'grid-slot slot-desk'; // Padrão
+                        }
+                    } else {
+                        // Novo projeto: tudo mesa
+                        slot.className = 'grid-slot slot-desk';
+                    }
                     
                     grid.appendChild(slot);
                 }
@@ -379,18 +374,23 @@
 
             page.appendChild(grid);
             workspace.appendChild(page);
+
+            // Se for carregamento, renderiza os alunos nos lugares
+            if(savedLayoutData) {
+                 savedLayoutData.forEach(s => {
+                     if(s.studentId !== null) updateSlotUI(s.id);
+                 });
+            }
         }
 
         function handleSlotClick(slotId) {
             const slot = document.getElementById(slotId);
             
-            // Lógica de Construção
+            // Construção
             if (currentTool !== 'cursor') {
-                // Remove classes antigas
                 slot.className = 'grid-slot';
-                slot.innerHTML = ''; // Limpa conteúdo (alunos, texto professor, etc)
+                slot.innerHTML = ''; 
 
-                // Verifica se tinha aluno e remove a associação
                 const occupant = allStudents.find(s => s.deskId === slotId);
                 if(occupant) {
                     occupant.seated = false;
@@ -398,7 +398,6 @@
                     renderSidebar();
                 }
 
-                // Aplica nova ferramenta
                 switch (currentTool) {
                     case 'desk': slot.classList.add('slot-desk'); break;
                     case 'teacher': slot.classList.add('slot-teacher'); break;
@@ -409,28 +408,19 @@
                 return;
             }
 
-            // Lógica de Alocação (Cursor)
-            // Só funciona se o slot for uma mesa (slot-desk)
+            // Alocação
             if (!slot.classList.contains('slot-desk')) return;
-
             const occupant = allStudents.find(s => s.deskId === slotId);
 
-            // Se tenho aluno selecionado na mão
             if (selectedStudentId !== null) {
                 const student = allStudents.find(s => s.id === selectedStudentId);
-                
-                // Se a mesa já tem gente, expulsa
                 if (occupant) { occupant.seated = false; occupant.deskId = null; }
-                
-                // Senta o novo
                 student.seated = true;
                 student.deskId = slotId;
-                selectedStudentId = null; // Limpa seleção
-                
+                selectedStudentId = null;
                 renderSidebar();
                 updateSlotUI(slotId);
             } 
-            // Se cliquei numa mesa ocupada mas não tenho ninguem na mão (remove aluno)
             else if (occupant) {
                 occupant.seated = false;
                 occupant.deskId = null;
@@ -441,21 +431,18 @@
 
         function updateSlotUI(slotId) {
             const slot = document.getElementById(slotId);
+            if(!slot) return;
             const occupant = allStudents.find(s => s.deskId === slotId);
             
             if (occupant) {
                 slot.classList.add('occupied');
                 slot.innerHTML = '';
-                
                 const content = document.createElement('div');
                 content.className = 'desk-content';
-                
                 const img = document.createElement('img');
                 img.src = window.URL.createObjectURL(occupant.fileCrop);
-                
                 const span = document.createElement('span');
                 span.innerText = occupant.name;
-                
                 content.appendChild(img);
                 content.appendChild(span);
                 slot.appendChild(content);
@@ -465,15 +452,33 @@
             }
         }
 
+        function setTool(toolName) {
+            currentTool = toolName;
+            document.querySelectorAll('.tool-option').forEach(el => el.classList.remove('active'));
+            const activeBtn = document.querySelector(`.tool-option[onclick="setTool('${toolName}')"]`);
+            if(activeBtn) activeBtn.classList.add('active');
+
+            const instruction = document.getElementById('sidebar-instruction');
+            if (toolName === 'cursor') {
+                instruction.innerText = "Clique num aluno, depois numa mesa.";
+                document.getElementById('sidebar-students').style.opacity = '1';
+                document.getElementById('sidebar-students').style.pointerEvents = 'auto';
+            } else {
+                instruction.innerText = "Modo Construção: Clique na grade para alterar.";
+                document.getElementById('sidebar-students').style.opacity = '0.5';
+                document.getElementById('sidebar-students').style.pointerEvents = 'none';
+                selectedStudentId = null;
+                renderSidebar();
+            }
+        }
+
         function renderSidebar() {
             sidebarContent.innerHTML = '';
             const unseated = allStudents.filter(s => !s.seated);
             unseated.forEach(student => {
                 const div = document.createElement('div');
                 div.className = `student-token ${selectedStudentId === student.id ? 'selected' : ''}`;
-                div.onclick = () => {
-                    if (currentTool === 'cursor') selectStudent(student.id);
-                };
+                div.onclick = () => { if (currentTool === 'cursor') selectStudent(student.id); };
                 const img = document.createElement('img');
                 img.src = window.URL.createObjectURL(student.fileCrop);
                 div.title = student.name;
@@ -489,16 +494,10 @@
         }
 
         function autoFill() {
-            if (currentTool !== 'cursor') {
-                alert("Mude para a ferramenta 'Alocar Aluno' (Cursor azul) para preencher.");
-                return;
-            }
+            if (currentTool !== 'cursor') { alert("Use a ferramenta 'Alocar Aluno'."); return; }
             const unseated = allStudents.filter(s => !s.seated);
-            // Busca apenas slots que são mesas E não tem a classe occupied
             const desks = Array.from(document.querySelectorAll('.slot-desk:not(.occupied)'));
-            
             if (desks.length === 0) { alert("Não há mesas livres."); return; }
-            
             unseated.forEach((student, i) => {
                 if (i < desks.length) {
                     student.seated = true;
@@ -517,6 +516,130 @@
             formScreen.classList.add('active');
             workspace.innerHTML = '';
             sidebarContent.innerHTML = '';
+        }
+
+        // --- SISTEMA DE EXPORTAÇÃO / IMPORTAÇÃO ---
+
+        // Helper: Converte Blob para Base64 (string)
+        function blobToBase64(blob) {
+            return new Promise((resolve, _) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        // Helper: Converte Base64 (string) para Blob
+        async function base64ToBlob(base64) {
+            const res = await fetch(base64);
+            return await res.blob();
+        }
+
+        async function exportProject() {
+            statusMsg.innerText = "Salvando Projeto...";
+            loadingOverlay.style.display = 'flex';
+
+            // 1. Mapear o estado atual da grade
+            const layoutData = [];
+            const slots = document.querySelectorAll('.grid-slot');
+            slots.forEach(slot => {
+                let type = 'floor';
+                if (slot.classList.contains('slot-desk')) type = 'desk';
+                else if (slot.classList.contains('slot-teacher')) type = 'teacher';
+                else if (slot.classList.contains('slot-cupboard')) type = 'cupboard';
+                else if (slot.classList.contains('slot-door')) type = 'door';
+
+                // Verifica quem está sentado aqui
+                const occupant = allStudents.find(s => s.deskId === slot.id);
+                
+                layoutData.push({
+                    id: slot.id,
+                    type: type,
+                    studentId: occupant ? occupant.id : null
+                });
+            });
+
+            // 2. Serializar alunos (Convertendo imagens para texto)
+            const studentsToSave = await Promise.all(allStudents.map(async (s) => {
+                const base64Img = await blobToBase64(s.fileCrop);
+                return {
+                    id: s.id,
+                    name: s.name,
+                    seated: s.seated,
+                    deskId: s.deskId,
+                    imageBase64: base64Img
+                };
+            }));
+
+            // 3. Montar objeto final
+            const projectData = {
+                title: document.getElementById('titulo').value,
+                rows: gridRows,
+                cols: gridCols,
+                students: studentsToSave,
+                layout: layoutData
+            };
+
+            // 4. Criar e baixar arquivo
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(projectData));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "projeto_sala.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+
+            loadingOverlay.style.display = 'none';
+        }
+
+        async function importProject(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            statusMsg.innerText = "Carregando Projeto...";
+            loadingOverlay.style.display = 'flex';
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+
+                    // Restaurar variáveis globais
+                    document.getElementById('titulo').value = data.title || "";
+                    gridRows = data.rows;
+                    gridCols = data.cols;
+                    document.getElementById('rowsInput').value = gridRows;
+                    document.getElementById('colsInput').value = gridCols;
+
+                    // Restaurar Alunos (Convertendo texto volta para imagem Blob)
+                    allStudents = await Promise.all(data.students.map(async (s) => {
+                        const blob = await base64ToBlob(s.imageBase64);
+                        return {
+                            id: s.id,
+                            name: s.name,
+                            seated: s.seated,
+                            deskId: s.deskId,
+                            fileCrop: blob
+                        };
+                    }));
+
+                    // Trocar tela
+                    formScreen.classList.remove('active');
+                    editorScreen.classList.add('active');
+
+                    // Renderizar
+                    renderSidebar();
+                    renderDynamicMap(data.layout);
+
+                } catch (err) {
+                    console.error(err);
+                    alert("Erro ao ler o arquivo de projeto. Verifique se é um JSON válido.");
+                } finally {
+                    loadingOverlay.style.display = 'none';
+                    input.value = ''; // Limpa input para permitir carregar o mesmo arquivo dnv
+                }
+            };
+            reader.readAsText(file);
         }
     </script>
 </body>
